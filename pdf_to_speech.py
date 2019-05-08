@@ -8,6 +8,8 @@ import PyPDF2
 import os
 import sys
 import time
+import re
+import string
 from google.api_core.exceptions import InvalidArgument
 
 from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
@@ -72,7 +74,7 @@ def main(file_name=None, start_page=None, end_page=None):
             continue
 
         ## DEBUG ##
-        page_content = "".join(i for i in page[:-1].replace('"','').replace('\x00','') if ord(i) < 128)
+        page_content = "".join(i for i in page[:-1] if i in '\n' + string.printable.replace('\x0b','').replace('\x0c',''))
 
         if len(page_content) > 5000:
             page_content = page_content[:5000]
