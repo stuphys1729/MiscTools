@@ -20,39 +20,50 @@ from io import StringIO
 
 class PdfConverter:
 
-   def __init__(self, file_path):
+    def __init__(self, file_path):
        self.file_path = file_path
-# convert pdf file to a string which has space among words 
-   def convert_pdf_to_txt(self):
-       start = time.time()
-       rsrcmgr = PDFResourceManager()
-       retstr = StringIO()
-       codec = 'utf-8'  # 'utf16','utf-8'
-       laparams = LAParams()
-       device = TextConverter(rsrcmgr, retstr, codec=codec, laparams=laparams)
-       fp = open(self.file_path, 'rb')
-       interpreter = PDFPageInterpreter(rsrcmgr, device)
-       password = ""
-       maxpages = 0
-       caching = True
-       pagenos = set()
-       for page in PDFPage.get_pages(fp, pagenos, maxpages=maxpages, password=password, caching=caching, check_extractable=True):
-           interpreter.process_page(page)
-           retstr.write("PAGEBREAKER")
-       fp.close()
-       fullstr = retstr.getvalue()
-       device.close()
-       retstr.close()
 
-       print("Processed pdf in {:.2f}s".format(time.time() - start))
-       return fullstr.split("PAGEBREAKER")
+    # convert pdf file to a string which has space among words 
+    def convert_pdf_to_txt(self, minpage=None, maxpage=None):
+        start = time.time()
+        rsrcmgr = PDFResourceManager()
+        retstr = StringIO()
+        codec = 'utf-8'  # 'utf16','utf-8'
+        laparams = LAParams()
+        device = TextConverter(rsrcmgr, retstr, codec=codec, laparams=laparams)
+        fp = open(self.file_path, 'rb')
+        interpreter = PDFPageInterpreter(rsrcmgr, device)
+        password = ""
+        maxpages = 0
+        caching = True
+        pagenos = set(); curpageno = 0
+        for page in PDFPage.get_pages(fp, pagenos, maxpages=maxpages, password=password, caching=caching, check_extractable=True):
+            curpageno += 1
+            if minpage:
+                if curpageno < minpage:
+                    continue
+            if maxpage:
+                if curpageno > maxpage:
+                    continue
+                # If we get this far, we should decode the page
+            interpreter.process_page(page)
+            if curpageno != maxpage:
+                retstr.write("PAGEBREAKER")
+
+        fp.close()
+        fullstr = retstr.getvalue()
+        device.close()
+        retstr.close()
+
+        print("Processed pdf in {:.2f}s".format(time.time() - start))
+        return fullstr.split("PAGEBREAKER")
 
 # convert pdf file text to string and save as a text_pdf.txt file
-   def save_convert_pdf_to_txt(self):
-       content = self.convert_pdf_to_txt()
-       txt_pdf = open('text_pdf.txt', 'wb')
-       txt_pdf.write(content.encode('utf-8'))
-       txt_pdf.close()
+    def save_convert_pdf_to_txt(self):
+        content = self.convert_pdf_to_txt()
+        txt_pdf = open('text_pdf.txt', 'wb')
+        txt_pdf.write(content.encode('utf-8'))
+        txt_pdf.close()
 
 def main(file_name=None, start_page=None, end_page=None):
     # Instantiates a client
@@ -66,12 +77,13 @@ def main(file_name=None, start_page=None, end_page=None):
         os.makedirs(directory)
 
     pdfConverter = PdfConverter(file_name)
-    pages = pdfConverter.convert_pdf_to_txt()
+    if start_page and end_page:
+        pages = pdfConverter.convert_pdf_to_txt(int(start_page), int(end_page))
+    else:
+        pages = pdfConverter.convert_pdf_to_txt()
 
+    start = time.time()
     for p, page in enumerate(pages):
-
-        if start_page and end_page and p not in range(int(start_page)-1, int(end_page)):
-            continue
 
         ## DEBUG ##
         page_content = "".join(i for i in page[:-1] if i in '\n' + string.printable.replace('\x0b','').replace('\x0c',''))
@@ -101,7 +113,10 @@ def main(file_name=None, start_page=None, end_page=None):
             raise(e)
 
         # The response's audio_content is binary.
-        new_file = directory + '/page' + str(p+1) + ".mp3"
+        if start_page:
+            new_file = directory + '/page' + str(int(start_page) + p) + '.mp3'
+        else:
+            new_file = directory + '/page' + str(p+1) + ".mp3"
         with open(new_file, 'wb') as out:
             # Write the response to the output file.
             out.write(response.audio_content)
@@ -110,7 +125,8 @@ def main(file_name=None, start_page=None, end_page=None):
         new_file = new_file.rstrip(".mp3") + "_script.txt"
         with open(new_file, 'wb') as out:
             out.write(page_content.encode('utf-8'))
+    
+    print("Produced Audio in {:.2f}s".format(time.time() - start))
 
 if __name__ == "__main__":
-
     main(*sys.argv[1:])
